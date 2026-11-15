@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>How to Make Chai — An Interactive Guide</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" defer></script>
+
+<style>
+  :root {
+    --bg-1: #17100b;
+    --bg-3: #3a2114;
+    --amber: #ffb347;
+    --amber-deep: #ff6b1a;
+    --cream: #ffd89b;
+    --text: #e8d4bc;
+    --card-bg: rgba(28, 16, 10, 0.85);
+    --card-border: rgba(255, 180, 71, 0.28);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 30%, var(--bg-3) 0%, var(--bg-1) 70%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  #three-canvas {
+    position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1;
+  }
+
+  /* ========== TOP BAR ========== */
+  .progress-bar {
+    position: fixed; top: 0; left: 0; width: 100%; height: 4px;
+    background: rgba(255, 255, 255, 0.06); z-index: 30;
+  }
+  .progress-fill {
+    height: 100%; width: 20%;
+    background: linear-gradient(90deg, var(--amber-deep), var(--amber), var(--cream));
+    box-shadow: 0 0 14px rgba(255, 180, 71, 0.7);
+    transition: width 0.4s ease-out;
+  }
+
+  .topbar {
+    position: fixed; top: 16px; left: 20px; right: 20px;
+    z-index: 30; display: flex; justify-content: space-between; align-items: center;
+    pointer-events: none;
+  }
+  .brand {
+    font-size: 0.78rem; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--cream); opacity: 0.7; pointer-events: auto;
+  }
+  .step-counter {
+    display: flex; align-items: baseline; gap: 8px;
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    padding: 8px 18px; border-radius: 50px; backdrop-filter: blur(12px);
+    font-size: 0.72rem; letter-spacing: 0.22em; color: var(--cream);
+    text-transform: uppercase; pointer-events: auto;
+  }
+  .step-counter .current { font-size: 1.35rem; font-weight: 800; color: var(--amber); letter-spacing: 0; line-height: 1; }
+  .step-counter .total { opacity: 0.5; }
+
+  /* ========== STAGE & STEP VIEWS ========== */
+  .stage {
+    position: relative; z-index: 3; width: 100%; height: 100vh;
+    display: flex; justify-content: center; align-items: center;
+    padding: 80px 24px 120px;
+  }
+
+  .step-view {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: min(1120px, 94vw);
+    display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 56px;
+    opacity: 0; pointer-events: none; /* JS will control visibility */
+  }
+  .step-view.active {
+    pointer-events: auto;
+  }
+
+  .step-visual {
+    position: relative; height: 420px;
+    display: flex; justify-content: center; align-items: center;
+  }
+
+  .step-card {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 22px; padding: 40px 42px;
+    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(20px);
+  }
+
+  .step-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--amber-deep), var(--amber));
+    color: #1a0f0a; font-weight: 900; font-size: 1.5rem;
+    margin-bottom: 18px; box-shadow: 0 8px 24px rgba(255, 120, 40, 0.4);
+  }
+
+  .step-card h2 {
+    font-size: clamp(1.5rem, 2.6vw, 2rem); font-weight: 800; color: var(--cream);
+    line-height: 1.15; margin-bottom: 16px;
+  }
+
+  .step-card p { font-size: 1rem; line-height: 1.75; color: var(--text); }
+  .step-card p strong { color: var(--amber); font-weight: 700; }
+
+  .step-tip {
+    margin-top: 22px; padding: 13px 16px; border-radius: 12px;
+    background: rgba(255, 180, 71, 0.08); border-left: 3px solid var(--amber);
+    font-size: 0.88rem; line-height: 1.6; color: var(--cream);
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+
+  /* =====================================================
+     CSS VISUALS
+     ===================================================== */
+  .scene {
+    position: relative; width: 340px; height: 340px;
+    display: flex; justify-content: center; align-items: center;
+  }
+
+  .pot {
+    position: absolute; bottom: 78px; width: 200px; height: 128px;
+    background: linear-gradient(165deg, #4a3a30 0%, #2a1d15 60%, #1a0f08 100%);
+    border-radius: 0 0 92px 92px / 0 0 78px 78px;
+    box-shadow: inset -14px -8px 24px rgba(0,0,0,0.6), inset 10px 6px 20px rgba(255,180,120,0.06), 0 22px 32px -10px rgba(0,0,0,0.65);
+    z-index: 2;
+  }
+  .pot-rim {
+    position: absolute; top: -8px; left: -14px; right: -14px; height: 24px;
+    background: linear-gradient(180deg, #6a5346, #2a1d15);
+    border-radius: 50%; box-shadow: inset 0 -6px 12px rgba(0,0,0,0.6);
+  }
+  .pot-handle {
+    position: absolute; left: -34px; top: 26px; width: 44px; height: 60px;
+    border: 10px solid #3a2a20; border-right: none;
+    border-radius: 60px 0 0 60px; box-shadow: inset 0 0 12px rgba(0,0,0,0.6);
+  }
+  .pot-handle-right {
+    position: absolute; right: -34px; top: 26px; width: 44px; height: 60px;
+    border: 10px solid #3a2a20; border-left: none;
+    border-radius: 0 60px 60px 0; box-shadow: inset 0 0 12px rgba(0,0,0,0.6);
+  }
+
+  .liquid {
+    position: absolute; top: 8px; left: 10px; right: 10px; height: 22px;
+    border-radius: 50%; background: radial-gradient(ellipse at 50% 60%, #f8f0e2 0%, #e8d8c0 100%);
+    box-shadow: inset 0 -4px 10px rgba(140, 90, 40, 0.25);
+    z-index: 3; overflow: hidden; transition: background 1s;
+  }
+  .pot[data-stage="tea"] .liquid { background: radial-gradient(ellipse at 50% 60%, #c88a4a 0%, #8a5228 100%); }
+  .pot[data-stage="boil"] .liquid { background: radial-gradient(ellipse at 50% 60%, #b87238 0%, #6a3414 100%); }
+
+  .bubble {
+    position: absolute; bottom: 0; border-radius: 50%;
+    background: rgba(255, 240, 220, 0.7); opacity: 0;
+  }
+
+  .burner {
+    position: absolute; bottom: 44px; width: 220px; height: 30px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 40%, rgba(255, 120, 30, 0.35), transparent 65%), radial-gradient(ellipse at 50% 50%, #2a1a10 0%, #0e0703 100%);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.6), inset 0 -4px 12px rgba(255,100,20,0.15);
+    z-index: 1;
+  }
+  .flame-halo {
+    position: absolute; bottom: 52px; width: 160px; height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 80%, rgba(255, 130, 40, 0.55), transparent 65%);
+    filter: blur(8px); opacity: 0; z-index: 1; pointer-events: none;
+  }
+  .flame-wrap {
+    position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+    width: 60px; height: 46px; z-index: 2; pointer-events: none; opacity: 0;
+  }
+  .flame {
+    position: absolute; bottom: 0;
+    border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%;
+    transform-origin: 50% 100%;
+  }
+  .flame-f1 { left: 0; right: 0; height: 100%; background: linear-gradient(180deg, #ffd76b 0%, #ff8a2b 55%, #ff3d00 100%); animation: flicker1 0.7s infinite alternate; }
+  .flame-f2 { left: 22%; right: 22%; height: 62%; background: linear-gradient(180deg, #fff2b0 0%, #ffb347 60%, #ff6b1a 100%); animation: flicker2 0.55s infinite alternate; }
+  .flame-f3 { left: 38%; right: 38%; height: 30%; background: #fffbe6; animation: flicker3 0.42s infinite alternate; }
+  @keyframes flicker1 { 0% { transform: scaleY(1) scaleX(1) skewX(0deg); } 100% { transform: scaleY(1.08) scaleX(0.94) skewX(2deg); } }
+  @keyframes flicker2 { 0% { transform: scaleY(0.92) skewX(-3deg); } 100% { transform: scaleY(1.05) skewX(2deg); } }
+  @keyframes flicker3 { 0% { transform: scaleY(1) skewX(4deg); } 100% { transform: scaleY(0.85) skewX(-4deg); } }
+
+  .steam-layer { position: absolute; bottom: 200px; left: 50%; width: 0; height: 0; z-index: 5; pointer-events: none; }
+  .steam-strand {
+    position: absolute; bottom: 0; left: 0; width: 14px; height: 90px; border-radius: 50%;
+    background: linear-gradient(to top, rgba(255, 240, 220, 0.55), transparent);
+    filter: blur(6px); opacity: 0; transform-origin: bottom center;
+  }
+
+  .leaf { position: absolute; top: -10px; width: 22px; height: 12px; background: linear-gradient(135deg, #4a8a3a, #2d5a22); border-radius: 50% 0 50% 0; opacity: 0; z-index: 6; }
+  .sugar { position: absolute; top: -10px; width: 10px; height: 10px; background: #fff; border-radius: 2px; opacity: 0; z-index: 6; }
+  .spoon {
+    position: absolute; top: 40px; left: 50%; width: 12px; height: 130px;
+    background: linear-gradient(90deg, #b8b0a4, #efe8dc 45%, #a8a092);
+    border-radius: 4px; transform-origin: 50% 0%; opacity: 0; z-index: 7;
+  }
+  .spoon::after { content: ""; position: absolute; bottom: -20px; left: -8px; width: 28px; height: 26px; background: radial-gradient(#efe8dc, #a8a092); border-radius: 50%; }
+
+  .cup { position: relative; width: 180px; height: 170px; z-index: 3; filter: drop-shadow(0 24px 30px rgba(0,0,0,0.55)); }
+  .cup-body {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 100%;
+    background: linear-gradient(135deg, #faf2e6 0%, #e8d8c0 55%, #cdb89c 100%);
+    border-radius: 0 0 90px 90px / 0 0 72px 72px;
+    box-shadow: inset -20px -10px 40px rgba(120, 80, 40, 0.35); overflow: hidden;
+  }
+  .cup-rim { position: absolute; top: -10px; left: -6px; right: -6px; height: 20px; background: linear-gradient(180deg, #ffffff, #e0cdb4); border-radius: 50%; }
+  .cup-tea { position: absolute; top: 4px; left: 12px; right: 12px; height: 16px; border-radius: 50%; background: radial-gradient(ellipse at 50% 60%, #b87238 0%, #5a2810 100%); z-index: 1; }
+  .cup-handle { position: absolute; right: -36px; top: 40px; width: 46px; height: 66px; border: 12px solid #e8d8c0; border-left: none; border-radius: 0 50px 50px 0; }
+  .saucer { position: absolute; bottom: -22px; left: -34px; right: -34px; height: 26px; border-radius: 50%; background: radial-gradient(ellipse at 50% 30%, #f5e8d4, #c8b294); }
+
+  /* ========== CONTROLS ========== */
+  .controls {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    z-index: 30; display: flex; align-items: center; gap: 14px;
+    background: rgba(20, 12, 8, 0.72); backdrop-filter: blur(14px);
+    padding: 10px 14px; border-radius: 60px; border: 1px solid var(--card-border);
+    box-shadow: 0 12px 34px rgba(0,0,0,0.5);
+  }
+  .ctrl-btn {
+    width: 46px; height: 46px; border-radius: 50%; border: none;
+    background: transparent; color: var(--amber); font-size: 1.1rem;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.25s;
+  }
+  .ctrl-btn:hover:not(:disabled) { background: rgba(255, 180, 71, 0.14); transform: scale(1.08); }
+  .ctrl-btn:disabled { opacity: 0.28; cursor: not-allowed; }
+  .ctrl-btn.primary {
+    width: 54px; height: 54px; background: linear-gradient(135deg, var(--amber-deep), var(--amber));
+    color: #1a0f0a; font-size: 1.2rem; box-shadow: 0 6px 18px rgba(255, 120, 40, 0.45);
+  }
+
+  .dots { display: flex; gap: 8px; margin: 0 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 180, 71, 0.28); border: none; padding: 0; cursor: pointer; transition: all 0.4s; }
+  .dot.active { width: 28px; border-radius: 6px; background: var(--amber); box-shadow: 0 0 10px rgba(255,180,71,0.7); }
+
+  @media (max-width: 900px) {
+    .stage { padding: 70px 16px 110px; align-items: flex-start; }
+    .step-view { top: 46%; grid-template-columns: 1fr; gap: 20px; width: 94vw; }
+    .step-visual { height: 220px; }
+    .scene { transform: scale(0.7); }
+    .step-card { padding: 24px 22px; }
+    .step-badge { width: 40px; height: 40px; font-size: 1.15rem; margin-bottom: 12px; }
+    .step-card h2 { font-size: 1.3rem; margin-bottom: 10px; }
+    .step-card p { font-size: 0.9rem; line-height: 1.6; }
+    .step-tip { margin-top: 14px; padding: 10px 12px; font-size: 0.8rem; }
+    .controls { bottom: 14px; gap: 8px; padding: 8px 10px; }
+    .ctrl-btn { width: 40px; height: 40px; font-size: 1rem; }
+    .ctrl-btn.primary { width: 46px; height: 46px; font-size: 1.05rem; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="three-canvas" aria-hidden="true"></canvas>
+
+<div class="progress-bar">
+  <div class="progress-fill" id="progressFill"></div>
+</div>
+
+<header class="topbar">
+  <div class="brand">Chai · A Brewing Ritual</div>
+  <div class="step-counter">
+    <span>Step</span>
+    <span class="current" id="currentNum">1</span>
+    <span class="total">/ 5</span>
+  </div>
+</header>
+
+<main class="stage">
+
+  <section class="step-view" data-index="0">
+    <div class="step-visual">
+      <div class="scene">
+        <div class="steam-layer">
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+        </div>
+        <div class="burner"></div>
+        <div class="flame-halo"></div>
+        <div class="flame-wrap">
+          <div class="flame flame-f1"></div>
+          <div class="flame flame-f2"></div>
+          <div class="flame flame-f3"></div>
+        </div>
+        <div class="pot" data-stage="milk">
+          <div class="pot-rim"></div>
+          <div class="pot-handle"></div>
+          <div class="pot-handle-right"></div>
+          <div class="liquid"></div>
+        </div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-badge">1</div>
+      <h2>Heat the Milk</h2>
+      <p>Pour <strong>1 cup of water</strong> and <strong>2 cups of milk</strong> into a saucepan. Warm over a medium flame — don't let it come to a full boil. Gentle heat lets the chai build a creamy base.</p>
+      <div class="step-tip"><span>💡</span><span>Stir occasionally so the milk doesn't catch at the bottom of the pot.</span></div>
+    </div>
+  </section>
+
+  <section class="step-view" data-index="1">
+    <div class="step-visual">
+      <div class="scene">
+        <div class="steam-layer">
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+        </div>
+        <div class="burner"></div>
+        <div class="flame-halo"></div>
+        <div class="flame-wrap">
+          <div class="flame flame-f1"></div>
+          <div class="flame flame-f2"></div>
+          <div class="flame flame-f3"></div>
+        </div>
+        <div class="pot" data-stage="milk">
+          <div class="pot-rim"></div>
+          <div class="pot-handle"></div>
+          <div class="pot-handle-right"></div>
+          <div class="liquid"></div>
+        </div>
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-badge">2</div>
+      <h2>Add the Tea Leaves</h2>
+      <p>Scatter <strong>2 teaspoons of tea leaves</strong> into the warm milk-water. Bring it back to a gentle simmer. As the leaves steep, the colour slowly deepens — that's the soul of the chai waking up.</p>
+      <div class="step-tip"><span>💡</span><span>Good-quality leaves make an enormous difference. A pinch of CTC gives a strong, malty body.</span></div>
+    </div>
+  </section>
+
+  <section class="step-view" data-index="2">
+    <div class="step-visual">
+      <div class="scene">
+        <div class="steam-layer">
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+        </div>
+        <div class="burner"></div>
+        <div class="flame-halo"></div>
+        <div class="flame-wrap">
+          <div class="flame flame-f1"></div>
+          <div class="flame flame-f2"></div>
+          <div class="flame flame-f3"></div>
+        </div>
+        <div class="pot" data-stage="tea">
+          <div class="pot-rim"></div>
+          <div class="pot-handle"></div>
+          <div class="pot-handle-right"></div>
+          <div class="liquid"></div>
+        </div>
+        <div class="spoon"></div>
+        <div class="sugar"></div>
+        <div class="sugar"></div>
+        <div class="sugar"></div>
+        <div class="sugar"></div>
+        <div class="sugar"></div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-badge">3</div>
+      <h2>Sugar &amp; Spices</h2>
+      <p>Add <strong>2–3 teaspoons of sugar</strong> to taste and stir gently. For a warm, peppery lift, drop in <strong>crushed ginger, cardamom pods, or cloves</strong>.</p>
+      <div class="step-tip"><span>💡</span><span>Stir in circles so the sugar dissolves evenly — don't scrape the bottom too hard or the chai turns bitter.</span></div>
+    </div>
+  </section>
+
+  <section class="step-view" data-index="3">
+    <div class="step-visual">
+      <div class="scene">
+        <div class="steam-layer">
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+        </div>
+        <div class="burner"></div>
+        <div class="flame-halo"></div>
+        <div class="flame-wrap">
+          <div class="flame flame-f1"></div>
+          <div class="flame flame-f2"></div>
+          <div class="flame flame-f3"></div>
+        </div>
+        <div class="pot" data-stage="boil">
+          <div class="pot-rim"></div>
+          <div class="pot-handle"></div>
+          <div class="pot-handle-right"></div>
+          <div class="liquid"></div>
+        </div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-badge">4</div>
+      <h2>Boil &amp; Strain</h2>
+      <p>Let the chai <strong>boil for 3–4 minutes</strong>. When it turns a deep brown and perfumes the air, take it off the heat. <strong>Strain through a sieve</strong> into a cup, pressing the leaves gently to release every drop.</p>
+      <div class="step-tip"><span>💡</span><span>Over-boiling makes chai bitter. Lift the pot right at the "rolling" stage for a smooth cup.</span></div>
+    </div>
+  </section>
+
+  <section class="step-view" data-index="4">
+    <div class="step-visual">
+      <div class="scene">
+        <div class="steam-layer">
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+          <div class="steam-strand"></div>
+        </div>
+        <div class="cup">
+          <div class="saucer"></div>
+          <div class="cup-body">
+            <div class="cup-tea"></div>
+          </div>
+          <div class="cup-rim"></div>
+          <div class="cup-handle"></div>
+        </div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-badge">5</div>
+      <h2>Serve &amp; Enjoy</h2>
+      <p>Your steaming cup of <strong>Indian chai is ready</strong>. Pour it hot into cups and share it. Pair with biscuits, namkeen, or pakoras for the perfect chai-time ritual.</p>
+      <div class="step-tip"><span>💡</span><span>Chai always tastes best when shared — sip it with family or friends.</span></div>
+    </div>
+  </section>
+
+<nav class="controls">
+  <button class="ctrl-btn" id="prevBtn">◀</button>
+  <button class="ctrl-btn primary" id="autoBtn">❚❚</button>
+  <button class="ctrl-btn" id="nextBtn">▶</button>
+  <div class="dots" id="dots"></div>
+</nav>
+
+<script>
+window.addEventListener("load", () => {
+  // Safety check
+  if (typeof gsap === 'undefined') {
+    alert("GSAP failed to load. Please check your internet connection.");
+    return;
+  }
+
+  const steps = Array.from(document.querySelectorAll('.step-view'));
+  const progressFill = document.getElementById('progressFill');
+  const currentNumEl = document.getElementById('currentNum');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const autoBtn = document.getElementById('autoBtn');
+  const dotsContainer = document.getElementById('dots');
+
+  const TOTAL = steps.length;
+  let current = 0;
+  let busy = false;
+  let autoPlay = true;
+  let autoTimer = null;
+  const AUTO_DELAY = 5500;
+
+  // Initialize dots
+  steps.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => { setAuto(false); goToStep(i); });
+    dotsContainer.appendChild(d);
+  });
+  const dots = Array.from(dotsContainer.children);
+
+  // Update UI
+  function updateUI() {
+    progressFill.style.width = ((current + 1) / TOTAL * 100) + '%';
+    currentNumEl.textContent = current + 1;
+    dots.forEach((d, i) => d.classList.toggle('active', i === current));
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === TOTAL - 1;
+    autoBtn.textContent = autoPlay ? '❚❚' : '▶';
+  }
+
+  // Autoplay
+  function scheduleNext() {
+    clearTimeout(autoTimer);
+    if (!autoPlay || busy) return;
+    autoTimer = setTimeout(() => {
+      if (busy) return; 
+      if (current === TOTAL - 1) goToStep(0);
+      else goToStep(current + 1);
+    }, AUTO_DELAY);
+  }
+
+  function setAuto(state) {
+    autoPlay = state;
+    updateUI();
+    if (autoPlay) scheduleNext();
+    else clearTimeout(autoTimer);
+  }
+
+  // Visuals
+  function killInnerAnimations(stepEl) {
+    gsap.killTweensOf(stepEl.querySelectorAll('*'));
+    stepEl.querySelectorAll('.leaf, .sugar, .spoon, .bubble').forEach(el => {
+      if(el.classList.contains('bubble')) el.remove();
+      else gsap.set(el, { opacity: 0 });
+    });
+  }
+
+  function playStepVisuals(stepEl, idx) {
+    killInnerAnimations(stepEl);
+
+    gsap.to(stepEl.querySelector('.flame-wrap'), { opacity: 1, duration: 0.4 });
+    gsap.to(stepEl.querySelector('.flame-halo'), { opacity: 0.6, duration: 0.4, repeat: -1, yoyo: true });
+
+    stepEl.querySelectorAll('.steam-strand').forEach((s, i) => {
+      gsap.fromTo(s, 
+        { opacity: 0, y: 0, x: (i-1)*10, scale: 0.6 }, 
+        { opacity: 0.5, y: -80, x: (i-1)*20, scale: 1.2, duration: 2.5, repeat: -1, delay: i * 0.4 }
+      );
+    });
+
+    if (idx === 1) {
+      const pot = stepEl.querySelector('.pot');
+      stepEl.querySelectorAll('.leaf').forEach((leaf, i) => {
+        gsap.fromTo(leaf,
+          { opacity: 0, x: (Math.random() - 0.5) * 80, y: -50, rotation: 0 },
+          { opacity: 1, y: 120, rotation: 360, duration: 1.2, delay: i * 0.1, ease: "power1.in", onComplete: () => gsap.to(leaf, { opacity: 0, duration: 0.3 }) }
+        );
+      });
+      setTimeout(() => pot.setAttribute('data-stage', 'tea'), 600);
+    }
+
+    if (idx === 2) {
+      stepEl.querySelectorAll('.sugar').forEach((s, i) => {
+        gsap.fromTo(s,
+          { opacity: 0, y: -50, x: (Math.random() - 0.5) * 60 },
+          { opacity: 1, y: 120, duration: 0.8, delay: i * 0.1, ease: "power2.in", onComplete: () => gsap.to(s, { opacity: 0, duration: 0.2 }) }
+        );
+      });
+      const spoon = stepEl.querySelector('.spoon');
+      gsap.fromTo(spoon, 
+        { opacity: 0, rotation: 0 },
+        { opacity: 1, rotation: 25, duration: 1.2, yoyo: true, repeat: 2, ease: "sine.inOut" }
+      ).then(() => gsap.to(spoon, { opacity: 0 }));
+    }
+
+    if (idx === 3) {
+      const liquid = stepEl.querySelector('.liquid');
+      for (let i = 0; i < 10; i++) {
+        const b = document.createElement('div');
+        b.className = 'bubble';
+        b.style.width = b.style.height = (Math.random() * 5 + 3) + 'px';
+        b.style.left = (Math.random() * 80 + 10) + '%';
+        liquid.appendChild(b);
+
+        gsap.to(b, {
+          opacity: 0.8, y: -15, duration: 0.8, repeat: -1, delay: Math.random() * 2,
+          onRepeat: () => { b.style.left = (Math.random() * 80 + 10) + '%'; gsap.set(b, {y: 0, opacity: 0.8}); }
+        });
+      }
+    }
+
+    if (idx === 4) {
+      const cup = stepEl.querySelector('.cup');
+      gsap.to(cup, { y: -8, duration: 2.5, repeat: -1, yoyo: true, ease: "sine.inOut" });
+    }
+  }
+
+  // Main Transition (Fully Sequential, No CSS conflicts)
+  function goToStep(nextIndex) {
+    if (busy || nextIndex === current || nextIndex < 0 || nextIndex >= TOTAL) return;
+    busy = true;
+    clearTimeout(autoTimer);
+
+    const outgoing = steps[current];
+    const incoming = steps[nextIndex];
+    const dir = nextIndex > current ? 1 : -1;
+
+    // 1. Animate OUT
+    gsap.to(outgoing.querySelector('.step-card'), { opacity: 0, x: -30 * dir, duration: 0.3 });
+    gsap.to(outgoing.querySelector('.step-visual'), { opacity: 0, x: 30 * dir, duration: 0.3, 
+      onComplete: () => {
+        outgoing.classList.remove('active');
+        outgoing.style.opacity = 0; // Hide it completely
+        outgoing.style.pointerEvents = 'none';
+        killInnerAnimations(outgoing);
+
+        // 2. Update State & Prepare incoming
+        current = nextIndex;
+        updateUI();
+        
+        incoming.classList.add('active');
+        incoming.style.opacity = 1;
+        incoming.style.pointerEvents = 'auto';
+
+        const card = incoming.querySelector('.step-card');
+        const visual = incoming.querySelector('.step-visual');
+        const texts = incoming.querySelectorAll('.step-badge, h2, p, .step-tip');
+
+        gsap.set(card, { opacity: 0, x: 30 * dir });
+        gsap.set(visual, { opacity: 0, x: -30 * dir });
+        gsap.set(texts, { opacity: 0, y: 15 });
+
+        // 3. Animate IN
+        const tl = gsap.timeline({
+          onComplete: () => {
+            busy = false;
+            scheduleNext();
+          }
+        });
+
+        tl.to(card, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, 0)
+          .to(visual, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, 0.05)
+          .to(texts, { opacity: 1, y: 0, duration: 0.3, stagger: 0.08, ease: "power2.out" }, 0.15)
+          .add(() => playStepVisuals(incoming, current), 0.2);
+      }
+    });
+  }
+
+  // Controls
+  prevBtn.addEventListener('click', () => { setAuto(false); goToStep(current - 1); });
+  nextBtn.addEventListener('click', () => { setAuto(false); goToStep(current + 1); });
+  autoBtn.addEventListener('click', () => setAuto(!autoPlay));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') { setAuto(false); goToStep(current + 1); }
+    if (e.key === 'ArrowLeft') { setAuto(false); goToStep(current - 1); }
+  });
+
+  // BOOT SEQUENCE
+  steps.forEach((s, i) => {
+    s.classList.remove('active');
+    s.style.opacity = 0;
+    s.style.pointerEvents = 'none';
+  });
+
+  const first = steps[0];
+  first.classList.add('active');
+  first.style.opacity = 1;
+  first.style.pointerEvents = 'auto';
+
+  const bootTl = gsap.timeline({
+    onComplete: () => { busy = false; scheduleNext(); }
+  });
+
+  bootTl.fromTo(first.querySelector('.step-card'), { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.5 })
+        .fromTo(first.querySelector('.step-visual'), { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.5 }, 0)
+        .fromTo(first.querySelectorAll('.step-badge, h2, p, .step-tip'), { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.1 }, 0.2)
+        .add(() => playStepVisuals(first, 0), 0.3);
+
+  updateUI();
+  
+  // Optional: 3D Background Safety fallback
+  try {
+    if (typeof THREE !== 'undefined') {
+      const canvas = document.getElementById('three-canvas');
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 100);
+      camera.position.z = 15;
+      
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(600 * 3);
+      for(let i=0; i<600*3; i+=3) { pos[i]=(Math.random()-0.5)*40; pos[i+1]=(Math.random()-0.5)*30; pos[i+2]=(Math.random()-0.5)*20-5; }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const mat = new THREE.PointsMaterial({ color: 0xffb347, size: 0.1, transparent: true, opacity: 0.5 });
+      const particles = new THREE.Points(geo, mat);
+      scene.add(particles);
+      
+      let time = 0;
+      function loop() { requestAnimationFrame(loop); time += 0.005; particles.rotation.y = time; renderer.render(scene, camera); }
+      loop();
+    }
+  } catch (e) { console.log("3D disabled."); }
+});
+</script>
+</body>
+</html>
